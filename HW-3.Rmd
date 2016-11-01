@@ -1,6 +1,6 @@
 ---
 title: "MATH 216 Homework 3"
-author: "WRITE YOUR NAME HERE"
+author: "Amanda Hotvedt"
 output:
   html_document:
     toc: true
@@ -15,6 +15,9 @@ library(dplyr)
 library(readr)
 library(lubridate)
 library(Quandl)
+library(tidyr)
+library(knitr)
+library(forcats)
 ```
 
 
@@ -23,9 +26,9 @@ library(Quandl)
 
 Please indicate
 
-* Who you collaborated with:
-* Roughly how much time you spent on this HW so far:
-* The URL of the RPubs published URL [here](https://www.nhl.com/).
+* Who you collaborated with: Katherine Hobbs, Kyra Gray
+* Roughly how much time you spent on this HW so far: 6 hours
+* The URL of the RPubs published URL [here](http://rpubs.com/ahotvedt/221812).
 * What gave you the most trouble:
 * Any comments you have:
 
@@ -82,6 +85,45 @@ to rate how well we performed.
 ```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
 set.seed(76)
 
+# Delete essays
+profiles <- profiles %>% 
+  select(-essay0, -essay1, -essay2, -essay3, -essay4, -essay5, -essay6, -essay7, -essay8, -essay9)
+
+# Income Buckets
+profiles <- profiles %>% 
+  mutate(income_level = 
+  ifelse(income %in% -2:0, "Not Reported", 
+  ifelse(income %in% 0:20000, "Low Income",
+  ifelse(income %in% 20001:70000, "Middle Income",
+  ifelse(income %in% 70000:1000000, "High Income", " ")))))
+
+# Job Buckets
+profiles <- profiles %>% 
+  mutate(job_new = 
+  ifelse(is.na(job), "Not Reported", job))
+
+# Body Type Buckets
+profiles <- profiles %>% 
+  mutate(body_type2 = ifelse(is.na(body_type), "Not Reported", body_type))
+
+profiles <- profiles %>% 
+  mutate(body_type_buckets = fct_recode(body_type2, 
+  "full figured / curvy" = "full figured",
+  "full figured / curvy" = "curvy",
+  "athletic" = "athletic",
+  "athletic" = "jacked",
+  "NA / rather not say" = "rather not say",
+  "no answer / rather not say" = "Not Reported")
+  )
+
+
+# Training Sets for the Model
+59942*.05
+
+training <- profiles[sample(nrow(profiles), 2997), ]
+
+test <- profiles[sample(nrow(profiles), 59942), ]
+
 ```
 
 
@@ -93,6 +135,14 @@ regression model to the `training` data. Assign this model to an R object called
 `predict_sex_model`, then rate how well the model performs on the `training` data.
 
 ```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
+
+training_model <- glm(is_female ~ income_level + job_new + body_type_buckets, data=training, family="binomial")
+
+broom::tidy(training_model)
+
+predict(training_model)
+
+fitted(training_model)
 
 ```
 
@@ -136,6 +186,37 @@ insight to a foreign currency exchanger.
 
 ```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
 
+bitcoin <- Quandl("BAVERAGE/USD") %>%
+  tbl_df()
+
+gold <- Quandl("BUNDESBANK/BBK01_WT5511") %>% 
+  tbl_df()
+
+bitcoin <- bitcoin %>% 
+  rename(
+    Avg = `24h Average`, 
+    Total_Volume = `Total Volume`
+    )
+
+bitcoin %>%
+  ggplot(data=., aes(x=Date, y=Avg)) +
+  geom_line()
+
+gold %>% 
+  ggplot(data=., aes(x=Date, y=Value)) +
+  geom_line()
+
+gold_recent <- gold %>% 
+  filter(Date %within% interval(ymd("2010-01-01"), ymd("2016-12-31")))
+
+# This plot simply shows the values of both bitcoin and gold in terms of
+# USD from 2010 through 2016. But it doesn't yet cover *relative* change
+p <- ggplot() +
+  geom_line(data=bitcoin, aes(x=Date, y=Avg, color="Bitcoin")) +
+  geom_line(data=gold_recent, aes(x=Date, y=Value, color="Gold")) +
+  labs(x='Date', y='USD')
+p
+
 ```
 
 
@@ -177,6 +258,25 @@ the "graveyard shift" during the academic year? Define
 * the academic year as September through May (inclusive)
 
 ```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
+
+jukebox <- jukebox %>% 
+  mutate(Date = parse_date_time(date_time, "a b d HMS Y")) %>% 
+  mutate(month = month(Date)) %>% 
+  mutate(hour = hour(Date))
+
+graveyard <- jukebox %>% 
+  filter(month<=5 | month>=9) %>%
+  filter(hour==24 | hour<=8)
+
+graveyard_top10_artists <- graveyard %>% 
+  group_by(artist) %>% 
+  tally() %>% 
+  ungroup(artist) %>% 
+  arrange(desc(n)) %>% 
+  filter(n>1222)
+
+graveyard_top10_artists %>% 
+  knitr::kable()
 
 ```
 
