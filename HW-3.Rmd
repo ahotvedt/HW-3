@@ -149,11 +149,12 @@ predictions <- predictions %>%
                           ifelse(p_hat<0.5 & is_female==0, 1, 0)))
 
 predictions %>% 
-  summarise(proportion_correct = mean(correct))
+  summarise(proportion_correct = mean(correct)) %>% 
+  kable(digits=3)
 
 ```
 
-The model performed with about 71% accuracy on the 'training' set.
+The model performed with about 70% accuracy on the 'training' set.
 
 
 #### c)
