@@ -116,13 +116,10 @@ profiles <- profiles %>%
   "no answer / rather not say" = "Not Reported")
   )
 
-
 # Training Sets for the Model
-59942*.05
-
 training <- profiles[sample(nrow(profiles), 2997), ]
 
-test <- profiles[sample(nrow(profiles), 56946), ]
+test <- anti_join(profiles, training, by='id')
 
 ```
 
@@ -154,7 +151,7 @@ predictions %>%
 
 ```
 
-The model performed with about 70% accuracy on the 'training' set.
+Choosing 0.5 as the 'decision threshold', the model performed with about 70% accuracy on the 'training' set.
 
 
 #### c)
@@ -167,24 +164,28 @@ type="response")` does? The help file is located in `?predict.glm`
 
 ```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
 
-# from Professor Kim's HW3 principles
-# p_hat <- predict(predict_sex_model, newdata=test, type="response")
-# ggplot(data=NULL, aes(x=p_hat)) + 
-#  geom_histogram()
+predictions_test <- test %>%
+  select(income_level, job_new, body_type_buckets, is_female) %>%
+  mutate(p_hat_test = predict(predict_sex_model, newdata=test, type="response"))
+
+predictions_test <- predictions_test %>% 
+  mutate(correct = ifelse(p_hat_test>0.5 & is_female==1, 1,
+                          ifelse(p_hat_test<0.5 & is_female==0, 1, 0)))
+
+predictions_test %>% 
+  summarise(proportion_correct = mean(correct)) %>% 
+  kable(digits=3)
 
 ```
 
-
+The model performed with about 70% accuracy on the 'test' data set as well!
 
 #### d)
 
 Did the model perform better on the `training` data or the `test` data? Why
 do you think that is?
 
-
-
-
-
+Interestingly enough, my model performed almost exactly the same on the 'training' and 'test' data sets! However, I would have expected it to perform better on the 'training' data set because that is what the model was built with.
 
 
 ## Question 2:
@@ -207,34 +208,26 @@ gold <- Quandl("BUNDESBANK/BBK01_WT5511") %>%
   tbl_df()
 
 bitcoin <- bitcoin %>% 
-  rename(
-    Avg = `24h Average`, 
-    Total_Volume = `Total Volume`
-    )
-
-bitcoin %>%
-  ggplot(data=., aes(x=Date, y=Avg)) +
-  geom_line()
-
-gold %>% 
-  ggplot(data=., aes(x=Date, y=Value)) +
-  geom_line()
+  rename(Avg = `24h Average`, Total_Volume = `Total Volume`) %>% 
+  mutate(Value_lag = lag(Avg)) %>% 
+  mutate(absolute_change = Avg - Value_lag) %>% 
+  mutate(relative_change = absolute_change/Value_lag)
 
 gold_recent <- gold %>% 
-  filter(Date %within% interval(ymd("2010-01-01"), ymd("2016-12-31")))
+  filter(Date %within% interval(ymd("2010-01-01"), ymd("2016-12-31"))) %>% 
+  mutate(Value_lag = lag(Value)) %>% 
+  mutate(absolute_change = Value - Value_lag) %>% 
+  mutate(relative_change = absolute_change/Value_lag)
 
-# This plot simply shows the values of both bitcoin and gold in terms of
-# USD from 2010 through 2016. But it doesn't yet cover *relative* change
 p <- ggplot() +
-  geom_line(data=bitcoin, aes(x=Date, y=Avg, color="Bitcoin")) +
-  geom_line(data=gold_recent, aes(x=Date, y=Value, color="Gold")) +
-  labs(x='Date', y='USD')
+  geom_line(data=bitcoin, aes(x=Date, y=relative_change, color="Bitcoin")) +
+  geom_line(data=gold_recent, aes(x=Date, y=relative_change, color="Gold")) +
+  labs(x='Date', y='USD', title='Relative Change in Day-to-Day Prices of Bitcoin and Gold')
 p
 
 ```
 
-
-
+Bitcoin is much more volatile compared to Gold! It's relative changes in day-to-day prices are all over the map, whereas Gold stays pretty steady. Which tells us it is a much less stable currency.
 
 
 ## Question 3:
@@ -286,8 +279,10 @@ graveyard_top10_artists <- graveyard %>%
   group_by(artist) %>% 
   tally() %>% 
   ungroup(artist) %>% 
-  arrange(desc(n)) %>% 
-  filter(n>1222)
+  arrange(desc(n))
+
+graveyard_top10_artists <- graveyard_top10_artists %>% 
+  top_n(10)
 
 graveyard_top10_artists %>% 
   knitr::kable()
